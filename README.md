@@ -22,6 +22,31 @@ This project classifies emails into `NORMAL`, `SPAM`, or `FRAUD` using a classic
   - Count Vectorizer (with and without stemming)
 - Model families: SVC, KNN, MultinomialNB, Decision Tree, Logistic Regression, Random Forest, AdaBoost, Bagging, ExtraTrees, SGD (hinge/logistic), and multiple voting ensembles.
 
+## Code Brief
+ - This file involves the process of Data Extraction. In this, 1000 fraud emails from the ‘fradulent_emails.txt’ file containing 4075 emails are extracted and, 1000 emails for each Spam and Normal category are extracted from ‘emails.csv’ file that contains 5730 emails which is a combination of both Spam and Normal emails. Finally, all the extracted emails are concatenated into one csv file. This csv file contains the final dataset that contains 3000 emails with 1000 emails for each category.
+ - Email_Classification.py:
+   This file involves the complete process of email processing and classification:
+
+1. Data Preprocessing:
+Functions are created for the removal of punctuation and stopwords. Another function is created for stemming of the content.
+In order to extract the relevant features 2 vectors were used: TF-IDF vectors and Count Vectors. First, the entire process of classification is performed by the features created using TF-IDF and then the features created by Count- Vectorizer are processed and observed. Then the features are split into train and test set in the ratio 7:3 respectively.
+
+2. Text Classification:
+Various classifers are trained on the features extracted above and then, their performance is observed. Before the training of the models, Parameter Tuning is performed to identify the optimum parameters for each classifier.
+
+3. Evaluation Metrics:
+The classifiers are evaluated on the basis of:
+<ul>
+   <li> Accuracy</li>
+   <li> Confusion Matrix</li>
+   <li> Precision, Recall and F-Score</li>
+</ul>
+
+
+  Accuracy
+  Confusion Matrix
+  Precision, Recall and F-Score
+
 ## Latest Training Snapshot
 _Output from `python Email_Classification.py` on the bundled dataset_
 
