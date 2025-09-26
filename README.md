@@ -1,7 +1,7 @@
 # Email Classification
 
 ## Overview
-This project classifies emails into `NORMAL`, `SPAM`, or `FRAUD` using a classical machine‑learning pipeline built on top of scikit-learn. The workflow covers text cleaning, extensive model benchmarking, evaluation, and artifact persistence so the best performer can be reused for real-time detection.
+This project classifies emails into three buckets — `Normal` (legitimate), `Spam`, and `Fraud` — using a TF-IDF + scikit-learn pipeline. The workflow mirrors the richer preprocessing used in the support-email classifier bot: HTML stripping, token filtering, stopword removal, and lemmatisation (see `text_preprocessing.py`). You can train either a logistic-regression baseline or a chi-squared-filtered random forest and persist the pipeline to both `.joblib` and `.pkl` artefacts for easy reuse.
 
 ## Technology Stack
 - Python 3.9+
@@ -21,31 +21,6 @@ This project classifies emails into `NORMAL`, `SPAM`, or `FRAUD` using a classic
   - TF-IDF + email length feature
   - Count Vectorizer (with and without stemming)
 - Model families: SVC, KNN, MultinomialNB, Decision Tree, Logistic Regression, Random Forest, AdaBoost, Bagging, ExtraTrees, SGD (hinge/logistic), and multiple voting ensembles.
-
-## Code Brief
- - This file involves the process of Data Extraction. In this, 1000 fraud emails from the ‘fradulent_emails.txt’ file containing 4075 emails are extracted and, 1000 emails for each Spam and Normal category are extracted from ‘emails.csv’ file that contains 5730 emails which is a combination of both Spam and Normal emails. Finally, all the extracted emails are concatenated into one csv file. This csv file contains the final dataset that contains 3000 emails with 1000 emails for each category.
- - Email_Classification.py:
-   This file involves the complete process of email processing and classification:
-
-1. Data Preprocessing:
-Functions are created for the removal of punctuation and stopwords. Another function is created for stemming of the content.
-In order to extract the relevant features 2 vectors were used: TF-IDF vectors and Count Vectors. First, the entire process of classification is performed by the features created using TF-IDF and then the features created by Count- Vectorizer are processed and observed. Then the features are split into train and test set in the ratio 7:3 respectively.
-
-2. Text Classification:
-Various classifers are trained on the features extracted above and then, their performance is observed. Before the training of the models, Parameter Tuning is performed to identify the optimum parameters for each classifier.
-
-3. Evaluation Metrics:
-The classifiers are evaluated on the basis of:
-<ul>
-   <li> Accuracy</li>
-   <li> Confusion Matrix</li>
-   <li> Precision, Recall and F-Score</li>
-</ul>
-
-
-  Accuracy
-  Confusion Matrix
-  Precision, Recall and F-Score
 
 ## Latest Training Snapshot
 _Output from `python Email_Classification.py` on the bundled dataset_
@@ -68,36 +43,62 @@ The pipeline automatically overwrites `models/tfidf_vectorizer.joblib` and `mode
 
 ## CLI & Workflow
 ```bash
-# End-to-end training (overwrites cached artifacts)
+# Train with class balancing (default logistic regression)
 python Email_Classification.py
 
-# Skip training and just load the saved artifacts
-python Email_Classification.py --skip-training
+# Switch classifiers or feature-selection knobs
+python Email_Classification.py --model rf --k-best 1000 --max-features 100000 --test-size 0.25
 
-# Retrain even if artifacts exist (silences overwrite warning)
-python Email_Classification.py --force-retrain
+# Train without balancing
+python Email_Classification.py --no-balance
+
+# Persist joblib/pickle to custom locations
+python Email_Classification.py --model rf --pickle-path models/custom.pkl --model-path models/custom.joblib
 ```
 
-### Data Preparation
+Sample results on the balanced dataset (`--max-features 100000`, `--test-size 0.25`):
+
+| Model | Label   | Precision | Recall | F1 | Support |
+|-------|---------|-----------|--------|----|---------|
+| Logistic | Normal  | 0.99 | 0.98 | 0.98 | 8,596 |
+| Logistic | Spam    | 0.94 | 0.96 | 0.95 | 8,596 |
+| Logistic | Fraud   | 0.97 | 0.95 | 0.96 | 8,597 |
+| Logistic | **Accuracy** | | | **0.96** | 25,789 |
+| Random Forest (`--model rf --k-best 1000`) | Normal | 0.97 | 0.96 | 0.97 | 8,596 |
+| Random Forest | Spam   | 0.93 | 0.93 | 0.93 | 8,596 |
+| Random Forest | Fraud  | 0.94 | 0.94 | 0.94 | 8,597 |
+| Random Forest | **Accuracy** | | | **0.95** | 25,789 |
+
+Each training run saves the pipeline to `models/email_classifier.joblib` and `models/email_classifier.pkl` (paths configurable via CLI).
+Pick whichever artefact aligns with your deployment stack—`joblib` for fast Python reloads or the plain pickle for broader tooling—and wire it into your Gmail management app without retraining every start-up.
+
+**Pipeline Run**
+- `python Extract_email.py` (optionally `--balance`) to refresh the combined dataset.
+- `python Email_Classification.py` with any tuning flags to train and persist a model.
+- `python Email_Classification.py --predict "<email>"` to inspect predictions, class percentages, and the driving tokens.
+- Load `models/email_classifier.joblib` or `models/email_classifier.pkl` to reuse the trained pipeline instantly.
+
+## Quick Predictions
+Use the `--predict` flag or instantiate `EmailClassifier` to score ad-hoc messages with the saved model.
+
 ```bash
-python Extract_email.py  # regenerates Datasets/final_dataset.csv
+python Email_Classification.py --predict "Dear customer, verify your account immediately..."
+# Predicted label: 2 (Fraud)
+# ..prints class probabilities and top suspicious words for Spam/Fraud
 ```
-Adjust dataset paths inside `Extract_email.py` if your raw corpora live elsewhere.
 
-## Real-Time Detection
+Or in Python:
+
 ```python
-from Email_Classification import RealTimeEmailDetector
+from Email_Classification import EmailClassifier
 
-detector = RealTimeEmailDetector()
-label = detector.predict("Congratulations, you've won...")
-print(label)  # -> SPAM / FRAUD / NORMAL
+clf = EmailClassifier()
+label, label_name = clf.predict("Meeting agenda attached")
+print(label, label_name)  # -> 0 Normal (after training)
 ```
-The helper loads the persisted vectorizer and classifier, applies the same preprocessing (punctuation removal + stopword filtering), and returns a label in real time. Embed this call in a Gmail webhook, IMAP poller, or any service that hands you raw email bodies.
 
-## Troubleshooting & Tips
-- **Missing stopwords**: `python -c "import nltk; nltk.download('stopwords')"`
-- **Artifacts not updating**: rerun with `--force-retrain` or delete the files in `models/`.
-- **Long training runs**: comment out experiment blocks you do not need, or subsample for experimentation.
-- **Dataset not found**: ensure `Datasets/final_dataset.csv` exists or update `input_dataset` in `Email_Classification.py`.
-
-For deeper experimentation, tweak hyperparameters inside `Email_Classification.py`, extend preprocessing via `Data_Preprocessing`, or add custom voting configurations. The README will stay current with the latest benchmark results so you can track progress over time.
+## Tips
+- Run `python Extract_email.py --balance` before training if you want the classifier to see a balanced class distribution.
+- Delete `models/email_classifier.joblib` to force a clean retrain.
+- Use `--model rf --k-best <k>` to reproduce the random-forest + chi-squared flow from the support-email project.
+- Use `--max-features` to trade accuracy vs. vocabulary size/performance.
